@@ -1,97 +1,73 @@
 # ai-agent-news-push
 
-低代码、配置驱动的**企业级 AI / Agent 资讯推送工具**，也是一个 [Claude Code Skill](https://docs.claude.com/en/docs/claude-code/skills)。
+低代码、配置驱动的小工具：把**企业级 AI / Agent 资讯**自动推送到**飞书 / 企业微信 / 钉钉 / 邮件**。
 
-抓取 RSS + Hacker News → 关键词过滤 → 本地去重 → LLM 富集（去重合并 / 分类 / 价值打分 / 中文摘要）→ 多渠道推送到**飞书 / 企业微信 / 钉钉 / 邮件**。
+编辑一个 `config.yaml`，运行一条命令即可。同时作为 [Claude Code Skill](https://docs.claude.com/en/docs/claude-code/skills) 使用 —— 让 Claude 帮你搭建、配置、运行和扩展。
 
-> 你只需编辑一个 `config.yaml`，运行一条命令。新增数据源或推送渠道无需改核心逻辑。
-
-## 特性
-
-- **低代码**：所有行为由 `config.yaml` 控制（数据源、关键词、渠道、推送条数、质量门槛）。
-- **多渠道**：飞书自定义机器人、企业微信群机器人、钉钉机器人（支持加签）、SMTP 邮件。
-- **AI 富集**：通过 OpenAI 兼容接口，对资讯做跨源去重合并、5 类分类（Tool Mastery / Workflow Mastery / Thinking / Funding / Research）、1-10 价值打分、生成中文标题与摘要。
-- **优雅降级**：LLM 不可用时自动回退为原始条目，工具不中断。
-- **去重存档**：基于 URL 哈希的本地 JSON 存档，避免重复推送。
-
-## 目录结构
+## 它做什么
 
 ```
-SKILL.md                      # Claude Code 技能入口（被 Claude 自动调用）
-assets/config.example.yaml    # 配置模板（复制为 config.yaml 后编辑）
-scripts/
-  news_push.py                # CLI 入口：编排五阶段流水线
-  sources.py                  # 采集层：RSS + Hacker News
-  processor.py                # AI 处理层：批量 LLM 富集
-  store.py                    # 去重存档
-  pushers.py                  # 推送层：飞书/企业微信/钉钉/邮件
-  requirements.txt
-references/
-  setup-webhooks.md           # 各渠道 Webhook 获取与签名说明
-  sources-catalog.md          # 可选数据源清单
-evals/evals.json              # 技能评测用例
+采集               过滤/去重           AI 处理                      推送
+RSS + Hacker News → 关键词 + JSON 去重 → LLM 去重合并/分类/        → 飞书 / 企业微信
+                                          价值评分(1-10)/中文摘要      钉钉 / 邮件
 ```
+
+- **多源采集**：任意 RSS（大厂博客、Agent 框架、GitHub Releases、arXiv、中文媒体…）+ Hacker News。
+- **关键词过滤 + 去重**：本地 JSON 存档记录已推送条目，不重复刷屏。
+- **AI 富集**：调用 OpenAI 兼容接口对内容去重合并、分类(Tool Mastery / Workflow Mastery / Thinking / Funding / Research)、打价值分、生成中文摘要。
+- **多渠道推送**：飞书互动卡片、企业微信 markdown、钉钉(支持加签)、SMTP 邮件。
+- **优雅降级**：LLM 调用失败时自动回退为原始条目，不中断推送。
 
 ## 快速开始
 
 ```bash
-# 1. 安装依赖
 pip install -r scripts/requirements.txt
 
-# 2. 准备配置
+# 1. 复制示例配置并按需修改
 cp assets/config.example.yaml config.yaml
-#    编辑 config.yaml：填入渠道 webhook，按需增删数据源 / 关键词
 
-# 3. 预览（不真正发送）
+# 2. 先预览（不真正发送）
 python scripts/news_push.py --config config.yaml --dry-run
 
-# 4. 正式推送
+# 3. 正式推送
 python scripts/news_push.py --config config.yaml
 ```
 
-## 配置要点（config.yaml）
+## 配置（config.yaml）
 
-```yaml
-llm:                      # OpenAI 兼容接口；默认读取环境变量里的网关
-  base_url_env: AI_GATEWAY_BASE_URL
-  api_key_env: AI_GATEWAY_API_KEY
-  model: anthropic/claude-haiku-4.5
+| 区块 | 作用 |
+|------|------|
+| `llm` | OpenAI 兼容接口（base_url / api_key / model），用于分类、评分、中文摘要 |
+| `keywords_include` / `keywords_exclude` | 关键词过滤白/黑名单 |
+| `sources.rss` | RSS 源列表，一行一个 `{name, url}` |
+| `sources.hackernews` | Hacker News 抓取（最低分数 + 关键词） |
+| `push.{feishu,wechat_work,dingtalk,email}` | 各渠道开关 + Webhook / 密钥 |
+| `delivery` | 推送条数、最低价值分、去重存档路径、标题、摘要风格 |
 
-keywords_include: [LLM, Agent, Agentic, MCP, 融资, ...]
-keywords_exclude: [...]
+各平台 Webhook 获取与签名方式见 [`references/setup-webhooks.md`](references/setup-webhooks.md)；可选数据源清单见 [`references/sources-catalog.md`](references/sources-catalog.md)。
 
-sources:
-  rss:
-    - { name: OpenAI Blog, url: https://openai.com/blog/rss.xml }
-  hackernews: { enabled: true, min_score: 100 }
-
-push:
-  feishu:      { enabled: true,  webhook: "https://open.feishu.cn/.../hook/xxxx", secret: "" }
-  wechat_work: { enabled: true,  webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx" }
-  dingtalk:    { enabled: false, webhook: "...", secret: "" }
-  email:       { enabled: false, smtp_host: "", username: "", password: "", to_addrs: [] }
-
-delivery:
-  max_items: 8
-  min_value_score: 6
-  dedup_store: pushed.json
-```
-
-各渠道 Webhook 获取方式与签名细节见 [`references/setup-webhooks.md`](references/setup-webhooks.md)。
-
-## 定时推送（cron）
+## 定时运行（cron 示例：每天早 9 点）
 
 ```cron
-# 每天 09:00 推送
-0 9 * * * cd /path/to/tool && python scripts/news_push.py --config config.yaml >> push.log 2>&1
+0 9 * * * cd /path/to/ai-agent-news-push && python scripts/news_push.py --config config.yaml >> push.log 2>&1
 ```
 
-## 企业微信接入说明
+## 目录结构
 
-企业微信群机器人使用 markdown 消息：`POST {webhook} {"msgtype":"markdown","markdown":{"content": ...}}`。
-在群设置 → 群机器人 → 添加机器人，复制 Webhook 地址填入 `push.wechat_work.webhook` 并设 `enabled: true` 即可。
-注意：单条消息上限约 4096 字节、每分钟 20 条，工具已自动截断超长内容。
+```
+SKILL.md                      # Claude Code skill 入口
+assets/config.example.yaml    # 配置模板（唯一需要编辑的文件）
+scripts/
+  news_push.py                # CLI 编排入口
+  sources.py                  # 采集层（RSS / Hacker News）
+  processor.py                # LLM 处理层（分类/评分/摘要/去重合并）
+  pushers.py                  # 推送层（飞书/企业微信/钉钉/邮件）
+  store.py                    # JSON 去重存档
+references/                   # Webhook 配置 & 数据源清单
+```
 
-## License
+## 备注
 
-MIT
+- 企业微信群机器人无需「加签」，`secret` 留空即可；钉钉若开启「加签」需填 `secret`。
+- 企业微信单机器人每分钟最多 20 条、单条 markdown 约 4096 字节（工具已自动截断）。
+- `config.yaml` 与 `pushed.json` 已在 `.gitignore` 中，避免把真实 Webhook / 密钥提交到仓库。
