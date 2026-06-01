@@ -40,14 +40,23 @@ keywords_exclude:
 sources:
   # RSS 源：加一个源就是加一行 {name, url}。更多优质源见 references/sources-catalog.md
   rss:
-    - name: Anthropic News
-      url: https://www.anthropic.com/rss.xml
     - name: OpenAI Blog
       url: https://openai.com/blog/rss.xml
     - name: Google AI Blog
       url: https://blog.google/technology/ai/rss/
     - name: Hugging Face Blog
       url: https://huggingface.co/blog/feed.xml
+    # --- Agent 前沿（开发者向，2026 实测可用）---
+    - name: Latent Space            # AI 工程师向 Newsletter，框架作者一线访谈
+      url: https://www.latent.space/feed
+    - name: smolagents Releases     # Hugging Face 极简 code-agent 框架版本追踪
+      url: https://github.com/huggingface/smolagents/releases.atom
+    # --- 中文实战 ---
+    - name: 量子位                   # 网站 feed（比公众号好接入）
+      url: https://www.qbitai.com/feed
+    # 注: Anthropic 官方已无稳定 RSS（旧 rss.xml 现 404），如需可走 RSSHub:
+    #   - name: Anthropic News
+    #     url: https://rsshub.app/anthropic/news
 
   # Hacker News：抓取得分高且含关键词的热帖
   hackernews:
